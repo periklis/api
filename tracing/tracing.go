@@ -2,12 +2,15 @@ package tracing
 
 import (
 	"fmt"
+	"net"
 
 	propjaeger "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/trace/jaeger"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -25,23 +28,45 @@ func InitTracer(
 	endpoint string,
 	endpointType EndpointType,
 	samplingFraction float64,
-) (tp trace.TracerProvider, closer func(), err error) {
-	endpointOption := jaeger.WithAgentEndpoint(endpoint)
-	if endpointType == EndpointTypeCollector {
-		endpointOption = jaeger.WithCollectorEndpoint(endpoint)
+) (tp trace.TracerProvider, err error) {
+	tp = trace.NewNoopTracerProvider()
+
+	if endpoint == "" {
+		return tp, nil
 	}
 
-	tp, closer, err = jaeger.NewExportPipeline(
-		endpointOption,
-		jaeger.WithProcess(jaeger.Process{
-			ServiceName: serviceName,
-		}),
-		jaeger.WithSDK(&sdktrace.Config{DefaultSampler: sdktrace.ParentBased(sdktrace.TraceIDRatioBased(samplingFraction))}),
-		jaeger.WithDisabled(endpoint == ""),
-	)
+	host, port, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return tp, closer, fmt.Errorf("create jaeger export pipeline: %w", err)
+		return nil, fmt.Errorf("failed to parse host and port from tracing endpoint: %w", err)
 	}
+
+	endpointOption := jaeger.WithAgentEndpoint(
+		jaeger.WithAgentHost(host),
+		jaeger.WithAgentPort(port),
+	)
+
+	if endpointType == EndpointTypeCollector {
+		endpointOption = jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint))
+	}
+
+	exp, err := jaeger.NewRawExporter(endpointOption)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new raw tracing exporter: %w", err)
+	}
+
+	res := resource.NewWithAttributes(
+		semconv.ServiceNameKey.String(serviceName),
+	)
+
+	s := sdktrace.ParentBased(
+		sdktrace.TraceIDRatioBased(samplingFraction),
+	)
+
+	tp = sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(s),
+	)
 
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
@@ -50,5 +75,5 @@ func InitTracer(
 		propagation.Baggage{},
 	))
 
-	return tp, closer, nil
+	return tp, nil
 }

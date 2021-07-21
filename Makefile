@@ -3,6 +3,7 @@ include .bingo/Variables.mk
 SHELL=/usr/bin/env bash -o pipefail
 TMP_DIR := $(shell pwd)/tmp
 BIN_DIR ?= $(TMP_DIR)/bin
+LOG_DIR ?= $(TMP_DIR)/logs
 CERT_DIR ?= $(TMP_DIR)/certs
 FIRST_GOPATH := $(firstword $(subst :, ,$(shell go env GOPATH)))
 OS ?= $(shell uname -s | tr '[A-Z]' '[a-z]')
@@ -105,7 +106,7 @@ test-unit:
 
 .PHONY: test-integration
 test-integration: build integration-test-dependencies generate-cert
-	THANOS=$(THANOS) UP=$(UP) DEX=$(DEX) LOKI=$(LOKI) WEBSOCAT=$(WEBSOCAT) OPA=$(OPA) GUBERNATOR=$(GUBERNATOR) ./test/integration.sh
+	LOG_DIR=$(LOG_DIR) THANOS=$(THANOS) UP=$(UP) DEX=$(DEX) LOKI=$(LOKI) WEBSOCAT=$(WEBSOCAT) OPA=$(OPA) GUBERNATOR=$(GUBERNATOR) ./test/integration.sh
 
 .PHONY: test-load
 test-load: build load-test-dependencies
@@ -116,6 +117,7 @@ clean:
 	-rm tmp/help.txt
 	-rm -rf tmp/bin
 	-rm -rf tmp/src
+	-rm -rf tmp/logs
 	-rm $(BIN_NAME)
 
 ratelimit/gubernator/proto/google:
@@ -156,7 +158,7 @@ container-release: container
 	docker push $(DOCKER_REPO):latest
 
 .PHONY: integration-test-dependencies
-integration-test-dependencies: $(THANOS) $(UP) $(DEX) $(LOKI) $(WEBSOCAT) $(OPA) $(GUBERNATOR)
+integration-test-dependencies: $(LOG_DIR) $(THANOS) $(UP) $(DEX) $(LOKI) $(WEBSOCAT) $(OPA) $(GUBERNATOR)
 
 .PHONY: load-test-dependencies
 load-test-dependencies: $(PROMREMOTEBENCH) $(PROMETHEUS) $(STYX) $(MOCKPROVIDER)
@@ -175,6 +177,9 @@ $(TMP_DIR):
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
+
+$(LOG_DIR):
+	mkdir -p $(LOG_DIR)
 
 $(CERT_DIR):
 	mkdir -p $(CERT_DIR)

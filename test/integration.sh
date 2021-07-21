@@ -23,7 +23,7 @@ GUBERNATOR=${GUBERNATOR:-gubernator}
   GUBER_HTTP_ADDRESS=localhost:8880 \
   GUBER_GRPC_ADDRESS=localhost:8881 \
   GUBER_MEMBERLIST_KNOWN_NODES=127.0.0.1:7946 \
-  $GUBERNATOR
+  $GUBERNATOR  > "$LOG_DIR"/gubernator.log 2>&1
 ) &
 
 echo "-------------------------------------------"
@@ -53,7 +53,8 @@ done
     --rbac.config=./test/config/rbac.yaml \
     --middleware.rate-limiter.grpc-address=127.0.0.1:8881 \
     --tenants.config=./test/config/tenants.yaml \
-    --log.level=debug
+    --log.level=debug \
+    2>&1 | tee "$LOG_DIR"/api.log
 ) &
 
 (
@@ -66,7 +67,8 @@ done
     --http-address=127.0.0.1:10902 \
     --remote-write.address=127.0.0.1:19291 \
     --log.level=error \
-    --tsdb.path="$(mktemp -d)"
+    --tsdb.path="$(mktemp -d)" \
+    > "$LOG_DIR"/thanos-receiver.log 2>&1
 ) &
 
 (
@@ -74,14 +76,16 @@ done
     --grpc-address=127.0.0.1:10911 \
     --http-address=127.0.0.1:9091 \
     --store=127.0.0.1:10901 \
-    --log.level=error
+    --log.level=error \
+    > "$LOG_DIR"/thanos.log 2>&1
 ) &
 
 (
   $LOKI \
     -log.level=error \
     -target=all \
-    -config.file=./test/config/loki.yml
+    -config.file=./test/config/loki.yml \
+    > "$LOG_DIR"/loki.log 2>&1
 ) &
 
 (
@@ -90,7 +94,8 @@ done
       --server \
       ./test/config \
       --ignore '*.json' \
-      --ignore '*.yml'
+      --ignore '*.yml' \
+    > "$LOG_DIR"/opa.log 2>&1
 ) &
 
 echo "-------------------------------------------"
@@ -107,7 +112,7 @@ echo "-------------------------------------------"
 echo "- Start Dex & ensure OIDC retries         -"
 echo "-------------------------------------------"
 
-($DEX serve ./test/config/dex.yaml) &
+($DEX serve ./test/config/dex.yaml > "$LOG_DIR"/dex.log 2>&1) &
 
 echo "-------------------------------------------"
 echo "- Waiting for Dex to come up...  -"

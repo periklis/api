@@ -26,6 +26,8 @@ jobs:
       - run: |
           apt-get update && apt-get -y install xz-utils unzip openssl
           make test --always-make
+      - store_artifacts:
+          path: tmp/logs
 
   generate:
     docker:

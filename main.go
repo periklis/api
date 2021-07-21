@@ -152,7 +152,7 @@ func main() {
 	logger := logger.NewLogger(cfg.logLevel, cfg.logFormat, cfg.debug.name)
 	defer level.Info(logger).Log("msg", "exiting")
 
-	tp, closer, err := tracing.InitTracer(
+	tp, err := tracing.InitTracer(
 		cfg.internalTracing.serviceName,
 		cfg.internalTracing.endpoint,
 		cfg.internalTracing.endpointType,
@@ -161,8 +161,6 @@ func main() {
 	if err != nil {
 		stdlog.Fatalf("initialize tracer: %v", err)
 	}
-
-	defer closer()
 
 	otel.SetErrorHandler(otelErrorHandler{logger: logger})
 
@@ -519,6 +517,7 @@ func main() {
 								metricsv1.SpanRoutePrefix("/api/metrics/v1/{tenant}"),
 								metricsv1.ReadMiddleware(authorization.WithAuthorizers(authorizers, rbac.Read, "metrics")),
 								metricsv1.ReadMiddleware(metricsv1.WithEnforceTenantLabel(cfg.metrics.tenantLabel)),
+								metricsv1.ReadMiddleware(metricsv1.WithEnforceAuthorizationLabels()),
 								metricsv1.UIMiddleware(authorization.WithAuthorizers(authorizers, rbac.Read, "metrics")),
 								metricsv1.WriteMiddleware(authorization.WithAuthorizers(authorizers, rbac.Write, "metrics")),
 							),
@@ -544,6 +543,7 @@ func main() {
 								logsv1.HandlerInstrumenter(ins),
 								logsv1.SpanRoutePrefix("/api/logs/v1/{tenant}"),
 								logsv1.ReadMiddleware(authorization.WithAuthorizers(authorizers, rbac.Read, "logs")),
+								logsv1.ReadMiddleware(logsv1.WithEnforceAuthorizationLabels()),
 								logsv1.WriteMiddleware(authorization.WithAuthorizers(authorizers, rbac.Write, "logs")),
 							),
 						),
