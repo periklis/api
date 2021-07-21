@@ -100,6 +100,7 @@ clean:
 	-rm tmp/help.txt
 	-rm -rf tmp/bin
 	-rm -rf tmp/src
+	-rm -rf tmp/logs
 	-rm $(BIN_NAME)
 
 ratelimit/gubernator/proto/google:
